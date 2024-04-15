@@ -263,8 +263,7 @@ class ContrastiveEmbed(nn.Module):
 
         res = x @ y.transpose(-1, -2)
         res.masked_fill_(~text_token_mask[:, None, :], float("-inf"))
-        # 接着，对res进行掩码操作，将未使用的文本token（即padding的token）对应的得分置为负无穷float("-inf")。这是为了在计算相似度时，排除padding部分的影响。
-
+        # Next, perform a masking operation on res, and set the score corresponding to the unused text token (that is, the padding token) to negative infinity float ("-inf"). This is to eliminate the influence of the padding part when calculating similarity.
 
         # padding to max_text_len
         new_res = torch.full((*res.shape[:-1], self.max_text_len), float("-inf"), device=res.device)

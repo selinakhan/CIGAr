@@ -281,7 +281,7 @@ class Transformer(nn.Module):
         #     if memory.isnan().any() | memory.isinf().any():
         #         import ipdb; ipdb.set_trace()
 
-        if self.two_stage_type == "standard":  #把encoder的输出作为proposal
+        if self.two_stage_type == "standard":  # Use the output of the encoder as a proposal
             output_memory, output_proposals = gen_encoder_output_proposals(
                 memory, mask_flatten, spatial_shapes
             )
