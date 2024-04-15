@@ -111,4 +111,5 @@ match_unstable_error = True
 use_detached_boxes_dec_out = False
 dn_scalar = 100
 
-use_coco_eval = True
+use_coco_eval = False
+label_list = ['attendant', 'woman', 'courtesan', 'doorway', 'book','young_man', 'bijin', 'umbrella', 'boat']
