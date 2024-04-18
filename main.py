@@ -9,6 +9,7 @@ from pathlib import Path
 import os, sys
 import numpy as np
 import torch
+import wandb
 from torch.utils.data import DataLoader, DistributedSampler
 
 from util.get_param_dicts import get_param_dict
@@ -43,7 +44,7 @@ def get_args_parser():
                         help='path where to save, empty for no saving')
     parser.add_argument('--note', default='',
                         help='add some notes to the experiment')
-    parser.add_argument('--device', default='cuda',
+    parser.add_argument('--device', default='cuda:0',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
@@ -271,7 +272,11 @@ def main(args):
 
         return
     
- 
+    wandb.init(
+    project="womart-thesis",
+    notes="test",
+    tags=["test"],
+    )
     
     print("Start training")
     start_time = time.time()

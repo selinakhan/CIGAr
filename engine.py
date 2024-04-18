@@ -6,6 +6,7 @@ Train and eval functions used in main.py
 import math
 import os
 import sys
+import wandb
 from typing import Iterable
 
 from util.utils import to_device
@@ -85,6 +86,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         if args.onecyclelr:
             lr_scheduler.step()
 
+        wandb.log({"loss": loss_value, 
+                   "loss_bbox": loss_dict_reduced_scaled['loss_bbox'],
+                   "loss_ce": loss_dict_reduced_scaled['loss_ce'],
+                   "loss_giou": loss_dict_reduced_scaled['loss_giou'],})
 
         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
         if 'class_error' in loss_dict_reduced:
@@ -150,7 +155,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         from pycocotools.coco import COCO
         coco = COCO(args.coco_val_path)
 
-        # 获取所有类别
+        # Get all categories
         category_dict = coco.loadCats(coco.getCatIds())
         cat_list = [item['name'] for item in category_dict]
     else:
@@ -193,9 +198,6 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             panoptic_evaluator.update(res_pano)
         
         if args.save_results:
-
-
-
             for i, (tgt, res) in enumerate(zip(targets, results)):
                 """
                 pred vars:
