@@ -20,9 +20,11 @@ import util.misc as utils
 
 import datasets
 from datasets import build_dataset, get_coco_api_from_dataset
-from engine import evaluate, train_one_epoch
+from engine import evaluate, evaluate_vg, train_one_epoch
 
 from groundingdino.util.utils import clean_state_dict
+
+
 
 
 def get_args_parser():
@@ -59,6 +61,10 @@ def get_args_parser():
     parser.add_argument('--find_unused_params', action='store_true')
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
+
+    parser.add_argument('--use_wandb', action='store_true')
+    parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg'])
+    parser.add_argument('--dataset', type=str, default='ukiyoe', choices=['ukiyoe', 'deart', 'iconart', 'artdl', 'flickr30k'])
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -134,6 +140,8 @@ def main(args):
     logger.info("args: " + str(args) + '\n')
 
     device = torch.device(args.device)
+    print(f"Running on {device}")
+
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
@@ -145,6 +153,7 @@ def main(args):
     model, criterion, postprocessors = build_model_main(args)
     wo_class_error = False
     model.to(device)
+
     logger.debug("build model, done.")
 
 
@@ -155,7 +164,7 @@ def main(args):
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info('number of params:'+str(n_parameters))
-    logger.info("params before freezing:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
+    # logger.info("params before freezing:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
 
     param_dicts = get_param_dict(args, model_without_ddp)
     
@@ -166,7 +175,7 @@ def main(args):
                 if keyword in name:
                     parameter.requires_grad_(False)
                     break
-    logger.info("params after freezing:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
+    # logger.info("params after freezing:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
 
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
@@ -212,9 +221,6 @@ def main(args):
     else:
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
-
-    base_ds = get_coco_api_from_dataset(dataset_val)
-
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(clean_state_dict(checkpoint['model']),strict=False)
@@ -256,31 +262,66 @@ def main(args):
         _load_output = model_without_ddp.load_state_dict(_tmp_st, strict=False)
         logger.info(str(_load_output))
 
- 
+    if args.use_wandb:
+        wandb.init(
+        project="womart-thesis",
+        dir=output_dir,
+        notes=str(args.note),
+        tags=[str(args.training_config), str(args.dataset)],
+        )
+
+    if dataset_meta["val"][0]["dataset_mode"] == 'coco':
+        base_ds = get_coco_api_from_dataset(dataset_val)
     
     if args.eval:
         os.environ['EVAL_FLAG'] = 'TRUE'
-        test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
-                                              data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
-        if args.output_dir:
-            utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
+        # Evaluate on object detection
+        if dataset_meta["val"][0]["dataset_mode"] == 'coco':
+            print("Evaluating on COCO...")
+            test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
+                                                data_loader_val, base_ds, device, args.output_dir, 
+                                                args.use_wandb, wo_class_error=wo_class_error, args=args)
+            
+
+            if args.output_dir:
+                utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
+
+        # Evaluate on VG
+        if dataset_meta["val"][0]["dataset_mode"] == 'odvg':
+            print("Evaluating on VG...")
+
+            checkpoint_path = output_dir / 'temp.pth'
+            utils.save_on_master({
+                'model': model_without_ddp.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
+                'epoch': 0,
+                'args': args,
+            }, checkpoint_path)
+
+            val_data_root = dataset_meta["val"][0]["anno"]
+            val_img_root = dataset_meta["val"][0]["root"]
+
+            cap_style = "full"
+            test_stats = evaluate_vg(checkpoint_path, args.config_file, 
+                                     val_data_root, val_img_root, cap_style, 
+                                     output_dir, args.use_wandb)
+            
+        
         log_stats = {**{f'test_{k}': v for k, v in test_stats.items()} }
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
         return
-    
-    wandb.init(
-    project="womart-thesis",
-    notes="test",
-    tags=["test"],
-    )
+
     
     print("Start training")
+    print(f"Training for {args.epochs} epochs.")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=False)
+
 
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
@@ -288,7 +329,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
 
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch,
+            model, criterion, data_loader_train, optimizer, device, epoch, args.use_wandb,
             args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None))
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -297,7 +338,7 @@ def main(args):
             lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 100 epochs
+            # extra checkpoint before LR drop and every x epochs
             if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
                 checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
             for checkpoint_path in checkpoint_paths:
@@ -311,13 +352,45 @@ def main(args):
 
                 utils.save_on_master(weights, checkpoint_path)
                 
-        # eval
-        test_stats, coco_evaluator = evaluate(
-            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-            wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
-        )
-        map_regular = test_stats['coco_eval_bbox'][0]
+        # Evaluation
+
+        # Evaluate on object detection
+        if dataset_meta["val"][0]["dataset_mode"] == 'coco':
+            print("Evaluating on OD...")
+            test_stats, coco_evaluator = evaluate(
+                model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+                args.use_wandb, wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
+            )
+
+            map_regular = test_stats['coco_eval_bbox'][0]
+
+        # Evaluate on VG
+        if dataset_meta["val"][0]["dataset_mode"] == 'odvg':
+            print("Evaluating on VG...")
+
+            checkpoint_path = output_dir / 'temp.pth'
+            utils.save_on_master({
+                'model': model_without_ddp.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
+                'epoch': 0,
+                'args': args,
+            }, checkpoint_path)
+            
+            val_data_root = dataset_meta["val"][0]["anno"]
+            val_img_root = dataset_meta["val"][0]["root"]
+
+            cap_style = "full"
+            test_stats = evaluate_vg(checkpoint_path, args.config_file, 
+                                     val_data_root, val_img_root, cap_style, 
+                                     output_dir, args.use_wandb)
+            
+            map_regular = test_stats['map']
+            coco_evaluator = None
+
         _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
+
+
         if _isbest:
             checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
             utils.save_on_master({
@@ -356,6 +429,7 @@ def main(args):
                     for name in filenames:
                         torch.save(coco_evaluator.coco_eval["bbox"].eval,
                                    output_dir / "eval" / name)
+                        
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))

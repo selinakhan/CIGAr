@@ -14,9 +14,9 @@ def get_tokenlizer(text_encoder_type):
             raise ValueError(
                 "Unknown type of text_encoder_type: {}".format(type(text_encoder_type))
             )
-    print("final text_encoder_type: {}".format(text_encoder_type))
+    # print("final text_encoder_type: {}".format(text_encoder_type))
     tokenizer = AutoTokenizer.from_pretrained(text_encoder_type)
-    print("load tokenizer done.")
+    # print("load tokenizer done.")
     return tokenizer
 
 

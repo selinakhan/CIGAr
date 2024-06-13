@@ -1,0 +1,22 @@
+{
+  "train": [
+    {
+      "root": "../../data/ukiyoe/images/",
+      "anno": "../../data/ukiyoe/grounding/splits/refined/ukiyoe_vg_train_refined.jsonl",
+      "dataset_mode": "odvg"
+    },
+    {
+      "root": "../../data/ukiyoe/images/",
+      "anno": "../../data/ukiyoe/grounding/splits/refined/ukiyoe_vg_val_refined.jsonl",
+      "dataset_mode": "odvg"
+    }
+
+  ],
+  "val": [
+    {
+      "root": "../../data/ukiyoe/images/",
+      "anno": "../../data/ukiyoe/grounding/splits/ukiyoe_vg_test.jsonl",
+      "dataset_mode": "odvg"
+    }
+  ]
+}

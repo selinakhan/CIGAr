@@ -4,10 +4,14 @@ Train and eval functions used in main.py
 """
 
 import math
+import ast
 import os
 import sys
 import wandb
+import json
 from typing import Iterable
+
+from pprint import pprint
 
 from util.utils import to_device
 import torch
@@ -18,10 +22,15 @@ from datasets.cocogrounding_eval import CocoGroundingEvaluator
 
 from datasets.panoptic_eval import PanopticEvaluator
 
+import subprocess
+
+# sys.path.append('../')
+# from inference import *
+# from eval.metrics import *
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0, 
+                    device: torch.device, epoch: int, use_wandb, max_norm: float = 0, 
                     wo_class_error=False, lr_scheduler=None, args=None, logger=None):
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
@@ -86,10 +95,11 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         if args.onecyclelr:
             lr_scheduler.step()
 
-        wandb.log({"loss": loss_value, 
-                   "loss_bbox": loss_dict_reduced_scaled['loss_bbox'],
-                   "loss_ce": loss_dict_reduced_scaled['loss_ce'],
-                   "loss_giou": loss_dict_reduced_scaled['loss_giou'],})
+        if use_wandb:
+            wandb.log({"loss": loss_value, 
+                    "loss_bbox": loss_dict_reduced_scaled['loss_bbox'],
+                    "loss_ce": loss_dict_reduced_scaled['loss_ce'],
+                    "loss_giou": loss_dict_reduced_scaled['loss_giou'],})
 
         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
         if 'class_error' in loss_dict_reduced:
@@ -118,7 +128,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, wo_class_error=False, args=None, logger=None):
+def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, use_wandb, wo_class_error=False, args=None, logger=None):
 
     model.eval()
     criterion.eval()
@@ -228,12 +238,6 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                     output_state_dict['res_info'] = []
                 output_state_dict['res_info'].append(res_info.cpu())
 
-            # # for debug only
-            # import random
-            # if random.random() > 0.7:
-            #     print("Now let's break")
-            #     break
-
         _cnt += 1
         if args.debug:
             if _cnt % 15 == 0:
@@ -276,8 +280,67 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         stats['PQ_th'] = panoptic_res["Things"]
         stats['PQ_st'] = panoptic_res["Stuff"]
 
+    if use_wandb:
+        log_dict = {'map': stats['coco_eval_bbox'][0],
+                    'map_50': stats['coco_eval_bbox'][1],
+                    'map_75': stats['coco_eval_bbox'][2],
+                    'mar_1': stats['coco_eval_bbox'][6],
+                    'mar_10': stats['coco_eval_bbox'][7],
+                    'mar_100': stats['coco_eval_bbox'][8]}
 
+        wandb.log(log_dict)
 
     return stats, coco_evaluator
 
+def check_subprocess_command(result):
+    # Check if the command was successful
+    if result.returncode == 0:
+        # Output the result from other_file.py
+        output = result.stdout.strip()
+        return output
+    else:
+        # Handle errors
+        error_message = result.stderr.strip()
+        print(f"Error: {error_message}")
+        return None
 
+
+
+@torch.no_grad()
+def evaluate_vg(checkpoint_path, config, data_root, img_root, cap_style, output_dir, use_wandb):
+
+    inference_output = output_dir / 'inference.jsonl'
+
+    inference_command = ['python', '../inference.py', 
+                         '--data_path', data_root, 
+                         '--cap_style', cap_style, 
+                         '--dataset_type', 'VG', 
+                         '--img_path', img_root, 
+                         '--model_checkpoint_path', checkpoint_path, 
+                         '--model_config_path', config,
+                         '--output_path', inference_output,
+                         '--training']
+
+    print("Running validation inference...")
+    inference_result = subprocess.run(inference_command, capture_output=True, text=True)
+
+    print("Calculating metrics...")
+
+    metrics_command = ['python', '../eval/metrics.py', 
+                       '--gt_data', data_root, 
+                       '--pred_data', inference_output, 
+                       '--phrase_matching', 'exact']
+
+    metrics_result = subprocess.run(metrics_command, capture_output=True, text=True)
+    results = check_subprocess_command(metrics_result)
+
+    test_results = ast.literal_eval(results)
+
+    print("Test results: \n")
+    pprint(test_results)
+
+    if use_wandb:
+        wandb.log(test_results)
+
+
+    return test_results
