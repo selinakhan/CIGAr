@@ -63,8 +63,10 @@ def get_args_parser():
     parser.add_argument('--save_log', action='store_true')
 
     parser.add_argument('--use_wandb', action='store_true')
-    parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg'])
+    parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg', 'vg_sg'])
     parser.add_argument('--dataset', type=str, default='ukiyoe', choices=['ukiyoe', 'deart', 'iconart', 'artdl', 'flickr30k'])
+    parser.add_argument('--combine_stage', type=str, default='beginning', choices=['beginning', 'before_matching'])
+
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -164,6 +166,7 @@ def main(args):
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info('number of params:'+str(n_parameters))
+
     # logger.info("params before freezing:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
 
     param_dicts = get_param_dict(args, model_without_ddp)
@@ -329,7 +332,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
 
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch, args.use_wandb,
+            model, criterion, data_loader_train, optimizer, device, epoch, args.use_wandb, args.combine_stage,
             args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None))
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']

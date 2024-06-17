@@ -50,7 +50,29 @@ from .utils import MLP, ContrastiveEmbed, sigmoid_focal_loss
 from .matcher import build_matcher
 
 
+class SimpleAttention(nn.Module):
+    def __init__(self, hidden_dim):
+        super(SimpleAttention, self).__init__()
 
+        self.query_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.key_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.value_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, query, key, value, mask=None):
+        query = self.query_proj(query)
+        key = self.key_proj(key)
+        value = self.value_proj(value)
+
+        attention_scores = torch.bmm(query, key.transpose(1, 2))
+
+        if mask is not None:
+            attention_scores = attention_scores.masked_fill(mask == 0, float('-inf'))
+
+        attention_weights = self.softmax(attention_scores)
+        attention_output = torch.bmm(attention_weights, value)
+
+        return attention_output
 
 class GroundingDINO(nn.Module):
     """This is the Cross-Attention Detector module that performs object detection"""
@@ -78,6 +100,7 @@ class GroundingDINO(nn.Module):
         text_encoder_type="bert-base-uncased",
         sub_sentence_present=True,
         max_text_len=256,
+        training_config="vg",
     ):
         """Initializes the model.
         Parameters:
@@ -95,6 +118,7 @@ class GroundingDINO(nn.Module):
         self.nheads = nheads
         self.max_text_len = 256
         self.sub_sentence_present = sub_sentence_present
+        self.training_config = training_config
 
         # setting query dim
         self.query_dim = query_dim
@@ -115,9 +139,14 @@ class GroundingDINO(nn.Module):
         self.bert = BertModelWarper(bert_model=self.bert)
 
         self.feat_map = nn.Linear(self.bert.config.hidden_size, self.hidden_dim, bias=True)
+
         nn.init.constant_(self.feat_map.bias.data, 0)
         nn.init.xavier_uniform_(self.feat_map.weight.data)
         # freeze
+        
+        if self.training_config == "vg_sg":
+            self.attention = SimpleAttention(self.hidden_dim)
+            self.feat_map_full_cap = nn.Linear(self.bert.config.hidden_size, self.hidden_dim, bias=True)
 
         # special tokens
         self.specical_tokens = self.tokenizer.convert_tokens_to_ids(["[CLS]", "[SEP]", ".", "?"])
@@ -213,7 +242,7 @@ class GroundingDINO(nn.Module):
     def init_ref_points(self, use_num_queries):
         self.refpoint_embed = nn.Embedding(use_num_queries, self.query_dim)
 
-    def forward(self, samples: NestedTensor, targets: List = None, **kw):
+    def forward(self, samples: NestedTensor, targets: List = None, combine_stage: str = 'beginning', **kw):
         """The forward expects a NestedTensor, which consists of:
            - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
            - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -230,14 +259,23 @@ class GroundingDINO(nn.Module):
         """
         if targets is None:
             captions = kw["captions"]
+            if self.training_config == "vg_sg":
+                full_captions = kw["full_captions"]
+
         else:
             captions = [t["caption"] for t in targets]
+            if self.training_config == "vg_sg":
+                full_captions = [t["full_caption"] for t in targets]
+            
         # encoder texts
 
         tokenized = self.tokenizer(captions, padding="longest", return_tensors="pt").to(
             samples.device
         )
         one_hot_token = tokenized
+
+        if self.training_config == "vg_sg":
+            tokenized_full_captions = self.tokenizer(full_captions, padding="longest", return_tensors="pt").to(samples.device)
 
         (
             text_self_attention_masks,
@@ -270,25 +308,68 @@ class GroundingDINO(nn.Module):
         text_token_mask = tokenized.attention_mask.bool()  # bs, 195
         # text_token_mask: True for nomask, False for mask
         # text_self_attention_masks: True for nomask, False for mask
+        
+        if self.training_config == "vg_sg":
 
-        if encoded_text.shape[1] > self.max_text_len:
-            encoded_text = encoded_text[:, : self.max_text_len, :]
-            text_token_mask = text_token_mask[:, : self.max_text_len]
-            position_ids = position_ids[:, : self.max_text_len]
-            text_self_attention_masks = text_self_attention_masks[
-                :, : self.max_text_len, : self.max_text_len
-            ]
+        # Extract text embeddings for full captions
+            bert_output_full = self.bert(**tokenized_full_captions)  # bs, max_text_len, hidden_size
+            encoded_text_full = self.feat_map_full_cap(bert_output_full["last_hidden_state"])  # NOTE bs, max_text_len, d_model
 
-        text_dict = {
-            "encoded_text": encoded_text,  # bs, 195, d_model
-            "text_token_mask": text_token_mask,  # bs, 195
-            "position_ids": position_ids,  # bs, 195
-            "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
+            if combine_stage == 'beginning':
+                
+                combined_encoded_text = self.attention(encoded_text, encoded_text_full, encoded_text_full)
+                
+                assert combined_encoded_text.shape == encoded_text.shape
+
+                # Ensure shapes match after combination
+                if combined_encoded_text.shape[1] > self.max_text_len:
+                    combined_encoded_text = combined_encoded_text[:, : self.max_text_len, :]
+                    text_token_mask = text_token_mask[:, : self.max_text_len]
+                    position_ids = position_ids[:, : self.max_text_len]
+                    text_self_attention_masks = text_self_attention_masks[
+                        :, : self.max_text_len, : self.max_text_len
+                    ]
+
+                text_dict = {
+                    "encoded_text": combined_encoded_text,
+                    "text_token_mask": text_token_mask,
+                    "position_ids": position_ids,
+                    "text_self_attention_masks": text_self_attention_masks,
+                }
+
+            else:
+                text_dict = {
+                    "encoded_text": encoded_text,  # bs, max_text_len, d_model
+                    "encoded_text_full": encoded_text_full,  # bs, max_text_len, d_model
+                    "text_token_mask": text_token_mask,  # bs, max_text_len
+                    "position_ids": position_ids,  # bs, max_text_len
+                    "text_self_attention_masks": text_self_attention_masks,  # bs, max_text_len, max_text_len
+            }
+
+        # Normal training   
+        else:
+            if encoded_text.shape[1] > self.max_text_len:
+                encoded_text = encoded_text[:, : self.max_text_len, :]
+                text_token_mask = text_token_mask[:, : self.max_text_len]
+                position_ids = position_ids[:, : self.max_text_len]
+                text_self_attention_masks = text_self_attention_masks[
+                    :, : self.max_text_len, : self.max_text_len
+                ]
+
+            text_dict = {
+                "encoded_text": encoded_text,  # bs, 195, d_model
+                "text_token_mask": text_token_mask,  # bs, 195
+                "position_ids": position_ids,  # bs, 195
+                "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
         }
 
+        assert text_dict['encoded_text'].shape[1] == text_dict['text_token_mask'].shape[1] == text_dict['position_ids'].shape[1] == text_dict['text_self_attention_masks'].shape[1]
 
+        ### Transformer
+        
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
+
         features, poss = self.backbone(samples)
         srcs = []
         masks = []
@@ -316,6 +397,20 @@ class GroundingDINO(nn.Module):
             srcs, masks, input_query_bbox, poss, input_query_label, attn_mask, text_dict
         )
 
+        ######
+
+        if combine_stage == 'before_matching' and self.training_config == "vg_sg":
+            
+            # Combine embeddings before matching
+            combined_encoded_text = self.attention(text_dict["encoded_text"], 
+                                                   text_dict["encoded_text_full"], 
+                                                   text_dict["encoded_text_full"])
+                
+            assert combined_encoded_text.shape == encoded_text.shape
+
+            text_dict["encoded_text"] = combined_encoded_text
+            text_dict.pop("encoded_text_full")
+
         
         # deformable-detr-like anchor update
         outputs_coord_list = []
@@ -326,8 +421,9 @@ class GroundingDINO(nn.Module):
             layer_outputs_unsig = layer_delta_unsig + inverse_sigmoid(layer_ref_sig)
             layer_outputs_unsig = layer_outputs_unsig.sigmoid()
             outputs_coord_list.append(layer_outputs_unsig)
-        outputs_coord_list = torch.stack(outputs_coord_list)
 
+        ##### Outputs
+        outputs_coord_list = torch.stack(outputs_coord_list)
 
         outputs_class = torch.stack(
             [
@@ -335,6 +431,8 @@ class GroundingDINO(nn.Module):
                 for layer_cls_embed, layer_hs in zip(self.class_embed, hs)
             ]
         )
+
+        #### Outputs
 
         out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord_list[-1]}
 
@@ -352,6 +450,7 @@ class GroundingDINO(nn.Module):
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord_list)
         out['token']=one_hot_token
+
         # # for encoder output
         if hs_enc is not None:
             # prepare intermediate outputs
@@ -531,6 +630,7 @@ class SetCriterion(nn.Module):
             
              return_indices: used for vis. if True, the layer0-5 indices will be returned as well.
         """
+
         device=next(iter(outputs.values())).device
         one_hot = torch.zeros(outputs['pred_logits'].size(),dtype=torch.int64) # torch.Size([bs, 900, 256])
         token = outputs['token'] 
@@ -754,6 +854,7 @@ def build_groundingdino(args):
         text_encoder_type=args.text_encoder_type,
         sub_sentence_present=sub_sentence_present,
         max_text_len=args.max_text_len,
+        training_config=args.training_config,
     )
 
 

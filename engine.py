@@ -30,7 +30,7 @@ import subprocess
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, use_wandb, max_norm: float = 0, 
+                    device: torch.device, epoch: int, use_wandb, combine_stage, max_norm: float = 0, 
                     wo_class_error=False, lr_scheduler=None, args=None, logger=None):
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
@@ -48,13 +48,15 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-
         samples = samples.to(device)
         captions = [t["caption"] for t in targets]
+        full_captions = [t["full_caption"] for t in targets]
+
         cap_list = [t["cap_list"] for t in targets]
         targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
+
         with torch.cuda.amp.autocast(enabled=args.amp):
-            outputs = model(samples, captions=captions)
+            outputs = model(samples, combine_stage=combine_stage, captions=captions, full_captions=full_captions)
             loss_dict = criterion(outputs, targets, cap_list, captions)
 
             weight_dict = criterion.weight_dict

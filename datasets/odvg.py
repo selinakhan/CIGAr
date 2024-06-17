@@ -95,6 +95,7 @@ class ODVGDataset(VisionDataset):
             classes = [caption_dict[self.label_map[str(obj["label"])]] for obj in instances]
             boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
             classes = torch.tensor(classes, dtype=torch.int64)
+
         elif self.dataset_mode == "VG":
             anno = meta["grounding"]
             instances = [obj for obj in anno["regions"]]
@@ -112,14 +113,16 @@ class ODVGDataset(VisionDataset):
             boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
             classes = torch.tensor(classes, dtype=torch.int64)
             caption_list = uni_caption_list
+
         target = {}
         target["size"] = torch.as_tensor([int(h), int(w)])
         target["cap_list"] = caption_list
         target["caption"] = caption
+        target["full_caption"] = anno["caption"]
         target["boxes"] = boxes
         target["labels"] = classes
         # size, cap_list, caption, bboxes, labels
-
+        
         if self.transforms is not None:
             image, target = self.transforms(image, target)
 
