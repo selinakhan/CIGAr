@@ -2,7 +2,7 @@
   "train": [
     {
       "root": "../../data/iconart/images/",
-      "anno": "../../data/iconart/split/iconart_train_odvg.jsonl",
+      "anno": "../../data/iconart/splits/iconart_train_pgt.jsonl",
       "label_map": "../../data/iconart/splits/label_map.json",
       "dataset_mode": "odvg"
     }
