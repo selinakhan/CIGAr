@@ -144,9 +144,16 @@ class GroundingDINO(nn.Module):
         nn.init.xavier_uniform_(self.feat_map.weight.data)
         # freeze
         
-        if self.training_config == "vg_sg":
+        if self.training_config == "sg":
             self.attention = SimpleAttention(self.hidden_dim)
             self.feat_map_full_cap = nn.Linear(self.bert.config.hidden_size, self.hidden_dim, bias=True)
+
+        if text_encoder_type != "bert-base-uncased":
+            self.ft_bert = True
+            self.feat_map_ft_bert = nn.Linear(self.bert.config.hidden_size, self.hidden_dim, bias=True)
+            nn.init.constant_(self.feat_map_ft_bert.bias.data, 0)
+            nn.init.xavier_uniform_(self.feat_map_ft_bert.weight.data)
+
 
         # special tokens
         self.specical_tokens = self.tokenizer.convert_tokens_to_ids(["[CLS]", "[SEP]", ".", "?"])
@@ -259,12 +266,12 @@ class GroundingDINO(nn.Module):
         """
         if targets is None:
             captions = kw["captions"]
-            if self.training_config == "vg_sg":
+            if self.training_config == "sg":
                 full_captions = kw["full_captions"]
 
         else:
             captions = [t["caption"] for t in targets]
-            if self.training_config == "vg_sg":
+            if self.training_config == "sg":
                 full_captions = [t["full_caption"] for t in targets]
             
         # encoder texts
@@ -274,7 +281,7 @@ class GroundingDINO(nn.Module):
         )
         one_hot_token = tokenized
 
-        if self.training_config == "vg_sg":
+        if self.training_config == "sg":
             tokenized_full_captions = self.tokenizer(full_captions, padding="longest", return_tensors="pt").to(samples.device)
 
         (
@@ -304,12 +311,16 @@ class GroundingDINO(nn.Module):
 
         bert_output = self.bert(**tokenized_for_encoder)  # bs, 195, 768
 
-        encoded_text = self.feat_map(bert_output["last_hidden_state"])  # bs, 195, d_model
+        if not self.ft_bert:
+            encoded_text = self.feat_map(bert_output["last_hidden_state"])  # bs, 195, d_model
+        else:
+            encoded_text = self.feat_map_ft_bert(bert_output["last_hidden_state"])
+            
         text_token_mask = tokenized.attention_mask.bool()  # bs, 195
         # text_token_mask: True for nomask, False for mask
         # text_self_attention_masks: True for nomask, False for mask
         
-        if self.training_config == "vg_sg":
+        if self.training_config == "sg":
 
         # Extract text embeddings for full captions
             bert_output_full = self.bert(**tokenized_full_captions)  # bs, max_text_len, hidden_size
@@ -399,7 +410,7 @@ class GroundingDINO(nn.Module):
 
         ######
 
-        if combine_stage == 'before_matching' and self.training_config == "vg_sg":
+        if combine_stage == 'before_matching' and self.training_config == "sg":
             
             # Combine embeddings before matching
             combined_encoded_text = self.attention(text_dict["encoded_text"], 

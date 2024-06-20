@@ -63,7 +63,7 @@ def get_args_parser():
     parser.add_argument('--save_log', action='store_true')
 
     parser.add_argument('--use_wandb', action='store_true')
-    parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg', 'vg_sg'])
+    parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg', 'sg'])
     parser.add_argument('--dataset', type=str, default='ukiyoe', choices=['ukiyoe', 'deart', 'iconart', 'artdl', 'flickr30k'])
     parser.add_argument('--combine_stage', type=str, default='beginning', choices=['beginning', 'before_matching'])
 
