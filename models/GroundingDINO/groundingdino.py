@@ -154,6 +154,9 @@ class GroundingDINO(nn.Module):
             nn.init.constant_(self.feat_map_ft_bert.bias.data, 0)
             nn.init.xavier_uniform_(self.feat_map_ft_bert.weight.data)
 
+        else:
+            self.ft_bert = False
+
 
         # special tokens
         self.specical_tokens = self.tokenizer.convert_tokens_to_ids(["[CLS]", "[SEP]", ".", "?"])
@@ -315,7 +318,7 @@ class GroundingDINO(nn.Module):
             encoded_text = self.feat_map(bert_output["last_hidden_state"])  # bs, 195, d_model
         else:
             encoded_text = self.feat_map_ft_bert(bert_output["last_hidden_state"])
-            
+
         text_token_mask = tokenized.attention_mask.bool()  # bs, 195
         # text_token_mask: True for nomask, False for mask
         # text_self_attention_masks: True for nomask, False for mask
