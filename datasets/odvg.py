@@ -9,6 +9,89 @@ import os, sys
 sys.path.append(os.path.dirname(sys.path[0]))
 
 import datasets.transforms as T
+import numpy as np
+
+def generate_offsets(X, range_min, range_max, std_dev, seed=None):
+    """
+    Generate X lists of offsets, sampling from a normal distribution with mean 0.
+    
+    Args:
+    - X (int): Number of lists of offsets to generate.
+    - range_min (float): Minimum value for the offsets.
+    - range_max (float): Maximum value for the offsets.
+    - std_dev (float): Standard deviation of the normal distribution.
+    - seed (int, optional): Random seed for reproducibility.
+    
+    Returns:
+    - List of lists of offsets: Each list contains [xmin_offset, ymin_offset, xmax_offset, ymax_offset].
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    
+    offsets = []
+    for _ in range(X):
+        offset = np.random.normal(loc=0, scale=std_dev, size=4)
+        offset = np.clip(offset, range_min, range_max)
+        offsets.append(offset.tolist())
+    
+    return offsets 
+
+def augment_bbox(bbox, offsets, image_width, image_height):
+    """
+    Augment a bounding box in xyxy format by given offsets and ensure it's within image boundaries.
+    
+    Args:
+    - bbox (list of floats): Bounding box in xyxy format (xmin, ymin, xmax, ymax).
+    - offsets (list of int): List of offsets [xmin_offset, ymin_offset, xmax_offset, ymax_offset].
+    - image_width (int): Width of the image.
+    - image_height (int): Height of the image.
+    
+    Returns:
+    - (float, float, float, float): Augmented and validated bounding box in xyxy format.
+    """
+    xmin, ymin, xmax, ymax = bbox
+    xmin_offset, ymin_offset, xmax_offset, ymax_offset = offsets
+
+    # Apply the offsets
+    new_xmin = xmin + xmin_offset
+    new_ymin = ymin + ymin_offset
+    new_xmax = xmax + xmax_offset
+    new_ymax = ymax + ymax_offset
+
+    # Check if the new bounding box is valid within the image boundaries
+    if (new_xmin >= 0 and new_xmax <= image_width and
+        new_ymin >= 0 and new_ymax <= image_height and
+        new_xmin < new_xmax and new_ymin < new_ymax):
+        return [round(new_xmin), round(new_ymin), round(new_xmax), round(new_ymax)]
+    else:
+        # Return the original bounding box if the new one is invalid
+        return [round(xmin), round(ymin), round(xmax), round(ymax)]
+    
+
+def augment_target_boxes(bboxes, image_width, image_height, seed=42):
+    """
+    Augment a set of bounding boxes in xyxy format by generating different offsets.
+    
+    Args:
+    - bboxes (list): List of bounding boxes in xyxy format (xmin, ymin, xmax, ymax).
+    - image_width (int): Width of the image.
+    - image_height (int): Height of the image.
+    
+    Returns:
+    - (float, float, float, float): Augmented and validated bounding box in xyxy format.
+    """
+
+    new_boxes = []
+    n_offsets = len(bboxes)
+
+    # Generate random offsets for each bounding box
+    offsets = generate_offsets(n_offsets, -10, 10, 3, seed)
+
+    for i, offset in enumerate(offsets):
+        new_bbox = augment_bbox(bboxes[i], offset, image_width, image_height)
+        new_boxes.append(new_bbox)
+
+    return new_boxes
 
 class ODVGDataset(VisionDataset):
     """
@@ -28,11 +111,12 @@ class ODVGDataset(VisionDataset):
         self,
         root: str,
         anno: str,
+        aug_target: bool = False,
         label_map_anno: str = None,
         max_labels: int = 80,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        transforms: Optional[Callable] = None,
+        transforms: Optional[Callable] = None
     ) -> None:
         super().__init__(root, transforms, transform, target_transform)
         self.root = root
@@ -40,6 +124,9 @@ class ODVGDataset(VisionDataset):
         self.max_labels = max_labels
         if self.dataset_mode == "OD":
             self.load_label_map(label_map_anno)
+
+        self.aug_target = aug_target
+
         self._load_metas(anno)
         self.get_dataset_info()
 
@@ -69,6 +156,12 @@ class ODVGDataset(VisionDataset):
             anno = meta["detection"]
             instances = [obj for obj in anno["instances"]]
             boxes = [obj["bbox"] for obj in instances]
+
+            if self.aug_target:
+                boxes = augment_target_boxes(orig_boxes, w, h)
+            else:
+                boxes = orig_boxes
+                
             # generate vg_labels
             # pos bbox labels
             ori_classes = [str(obj["label"]) for obj in instances]
@@ -101,7 +194,16 @@ class ODVGDataset(VisionDataset):
         elif self.dataset_mode == "VG":
             anno = meta["grounding"]
             instances = [obj for obj in anno["regions"]]
-            boxes = [obj["bbox"] for obj in instances]
+
+            orig_boxes = [obj["bbox"] for obj in instances]
+            print(orig_boxes)
+
+            if self.aug_target:
+                boxes = augment_target_boxes(orig_boxes, w, h)
+                print(boxes)
+            else:
+                boxes = orig_boxes
+
             caption_list = [obj["phrase"] for obj in instances]
             c = list(zip(boxes, caption_list))
             random.shuffle(c)
@@ -130,6 +232,7 @@ class ODVGDataset(VisionDataset):
         if self.transforms is not None:
             image, target = self.transforms(image, target)
 
+        print(target["boxes"])
         return image, target
     
 
@@ -241,7 +344,7 @@ def build_odvg(image_set, args, datasetinfo):
     except:
         strong_aug = False
     print(img_folder, ann_file, label_map)
-    dataset = ODVGDataset(img_folder, ann_file, label_map, max_labels=args.max_labels,
+    dataset = ODVGDataset(img_folder, ann_file, args.aug_target, label_map, max_labels=args.max_labels,
             transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args), 
     )
     return dataset

@@ -63,6 +63,8 @@ def get_args_parser():
     parser.add_argument('--find_unused_params', action='store_true')
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
+    parser.add_argument('--aug_target', action='store_true')
+
 
     parser.add_argument('--use_wandb', action='store_true')
     parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg', 'sg'])
