@@ -309,7 +309,8 @@ def check_subprocess_command(result):
 
 
 @torch.no_grad()
-def evaluate_vg(checkpoint_path, config, data_root, img_root, cap_style, output_dir, use_wandb):
+def evaluate_vg(checkpoint_path, config, data_root, img_root, cap_style, 
+                output_dir, use_wandb, text_threshold, box_threshold):
 
     inference_output = output_dir / 'inference.jsonl'
 
@@ -318,6 +319,8 @@ def evaluate_vg(checkpoint_path, config, data_root, img_root, cap_style, output_
                          '--cap_style', cap_style, 
                          '--dataset_type', 'VG', 
                          '--img_path', img_root, 
+                         '--text_threshold', str(text_threshold),
+                         '--box_threshold', str(box_threshold),
                          '--model_checkpoint_path', checkpoint_path, 
                          '--model_config_path', config,
                          '--output_path', inference_output,

@@ -55,6 +55,8 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--text_threshold', default=0.4, type=float)
+    parser.add_argument('--box_threshold', default=0.4, type=float)
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--debug', action='store_true')
@@ -309,7 +311,7 @@ def main(args):
             cap_style = "full"
             test_stats = evaluate_vg(checkpoint_path, args.config_file, 
                                      val_data_root, val_img_root, cap_style, 
-                                     output_dir, args.use_wandb)
+                                     output_dir, args.use_wandb, args.text_threshold, args.box_threshold)
             
         
         log_stats = {**{f'test_{k}': v for k, v in test_stats.items()} }
@@ -386,7 +388,7 @@ def main(args):
             cap_style = "full"
             test_stats = evaluate_vg(checkpoint_path, args.config_file, 
                                      val_data_root, val_img_root, cap_style, 
-                                     output_dir, args.use_wandb)
+                                     output_dir, args.use_wandb, args.text_threshold, args.box_threshold)
             
             map_regular = test_stats['map']
             coco_evaluator = None
