@@ -183,6 +183,9 @@ def main(args):
                     parameter.requires_grad_(False)
                     break
     # logger.info("params after freezing:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
+    
+    trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info('number of trainable params:'+str(trainable_parameters))
 
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
