@@ -230,7 +230,6 @@ class ODVGDataset(VisionDataset):
         if self.transforms is not None:
             image, target = self.transforms(image, target)
 
-        print(target["boxes"])
         return image, target
     
 
