@@ -155,7 +155,7 @@ class ODVGDataset(VisionDataset):
         if self.dataset_mode == "OD":
             anno = meta["detection"]
             instances = [obj for obj in anno["instances"]]
-            boxes = [obj["bbox"] for obj in instances]
+            orig_boxes = [obj["bbox"] for obj in instances]
 
             if self.aug_target:
                 boxes = augment_target_boxes(orig_boxes, w, h)
@@ -196,11 +196,9 @@ class ODVGDataset(VisionDataset):
             instances = [obj for obj in anno["regions"]]
 
             orig_boxes = [obj["bbox"] for obj in instances]
-            print(orig_boxes)
 
             if self.aug_target:
                 boxes = augment_target_boxes(orig_boxes, w, h)
-                print(boxes)
             else:
                 boxes = orig_boxes
 
