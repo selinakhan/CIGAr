@@ -273,10 +273,7 @@ class GroundingDINO(nn.Module):
                 try:
                     full_captions = kw["full_captions"]
                 except KeyError: 
-                    if not self.training: # Training with context, evaluating without
-                        full_captions = None
-                    else:
-                        raise KeyError("full caption not found in targets")
+                    raise KeyError("full caption not found in targets")
 
         else:
             captions = [t["caption"] for t in targets]
@@ -284,10 +281,7 @@ class GroundingDINO(nn.Module):
                 try:
                     full_captions = [t["full_caption"] for t in targets]
                 except KeyError:
-                    if not self.training: # Training with context, evaluating without
-                        full_captions = None
-                    else:
-                        raise KeyError("full caption not found in targets")
+                    raise KeyError("full caption not found in targets")
             
         # encoder texts
 

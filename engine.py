@@ -182,9 +182,11 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
         bs = samples.tensors.shape[0]
         input_captions = [caption] * bs
-        with torch.cuda.amp.autocast(enabled=args.amp):
 
-            outputs = model(samples, captions=input_captions)
+        full_caps = [full_cap['caption'] for full_cap in targets]
+
+        with torch.cuda.amp.autocast(enabled=args.amp):
+            outputs = model(samples, captions=input_captions, full_captions=full_caps)
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
 

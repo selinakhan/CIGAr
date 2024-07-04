@@ -66,6 +66,8 @@ def to_device(item, device):
         return item.to(device)
     elif isinstance(item, list):
         return [to_device(i, device) for i in item]
+    elif isinstance(item, str):
+        return item
     elif isinstance(item, dict):
         return {k: to_device(v, device) for k,v in item.items()}
     else:
