@@ -21,14 +21,14 @@ from scipy.optimize import linear_sum_assignment
 
 import importlib  
 
-def import_from(module, name):
-    module = __import__(module, fromlist=[name])
-    return getattr(module, name)
+# def import_from(module, name):
+#     module = __import__(module, fromlist=[name])
+#     return getattr(module, name)
 
-import_from("Open-GroundingDino.util.box_ops", "box_cxcywh_to_xyxy")
-import_from("Open-GroundingDino.util.box_ops", "generalized_box_iou")
+# import_from("Open-GroundingDino.util.box_ops", "box_cxcywh_to_xyxy")
+# import_from("Open-GroundingDino.util.box_ops", "generalized_box_iou")
 
-# from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
+from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
 
 
 

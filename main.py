@@ -55,8 +55,8 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    # parser.add_argument('--text_threshold', default=0.4, type=float)
-    # parser.add_argument('--box_threshold', default=0, type=float)
+    parser.add_argument('--text_threshold', default=0.4, type=float)
+    parser.add_argument('--box_threshold', default=0, type=float)
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--debug', action='store_true')
@@ -67,9 +67,9 @@ def get_args_parser():
 
 
     parser.add_argument('--use_wandb', action='store_true')
-    # parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg', 'sg'])
+    parser.add_argument('--training_config', type=str, default='od', choices=['od', 'vg', 'sg'])
     parser.add_argument('--dataset', type=str, default='ukiyoe', choices=['ukiyoe', 'deart', 'iconart', 'artdl', 'flickr30k'])
-    # parser.add_argument('--combine_stage', type=str, default='beginning', choices=['beginning', 'before_matching'])
+    parser.add_argument('--combine_stage', type=str, default='beginning', choices=['beginning', 'before_matching'])
 
 
     # distributed training parameters

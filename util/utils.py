@@ -6,8 +6,8 @@ import warnings
 import torch
 import numpy as np
 
-import sys 
-sys.path.append('..')
+# import sys 
+# sys.path.append('..')
 
 def slprint(x, name='x'):
     if isinstance(x, (torch.Tensor, np.ndarray)):
@@ -207,13 +207,14 @@ def inverse_sigmoid(x, eps=1e-5):
     return torch.log(x1/x2)
 
 import argparse
-# from util.slconfig import SLConfig
-import importlib
-def import_class(module, class_name):
-    mod = importlib.import_module(module)
-    return getattr(mod, class_name)
+from util.slconfig import SLConfig
 
-SLConfig = import_class("Open-GroundingDino.util.slconfig", "SLConfig")
+# import importlib
+# def import_class(module, class_name):
+#     mod = importlib.import_module(module)
+#     return getattr(mod, class_name)
+
+# SLConfig = import_class("Open-GroundingDino.util.slconfig", "SLConfig")
 
 def get_raw_dict(args):
     """

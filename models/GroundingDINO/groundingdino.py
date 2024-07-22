@@ -269,23 +269,19 @@ class GroundingDINO(nn.Module):
 
         if targets is None:
             captions = kw["captions"]
-            if self.training_config == "sg" and self.training:
+            if self.training_config == "sg":
                 try:
                     full_captions = kw["full_captions"]
                 except KeyError: 
                     raise KeyError("full caption not found in targets")
-            elif not self.training:
-                full_captions = None
 
         else:
             captions = [t["caption"] for t in targets]
-            if self.training_config == "sg" and self.training:
+            if self.training_config == "sg":
                 try:
                     full_captions = [t["full_caption"] for t in targets]
                 except KeyError:
                     raise KeyError("full caption not found in targets")
-            elif not self.training:
-                full_captions = None
             
         # encoder texts
 
@@ -294,7 +290,7 @@ class GroundingDINO(nn.Module):
         )
         one_hot_token = tokenized
 
-        if self.training_config == "sg" and full_captions is not None and self.training:
+        if self.training_config == "sg" and full_captions is not None:
             tokenized_full_captions = self.tokenizer(full_captions, padding="longest", return_tensors="pt").to(samples.device)
 
             if tokenized_full_captions["input_ids"].shape[1] > self.max_text_len:
@@ -338,7 +334,7 @@ class GroundingDINO(nn.Module):
         # text_token_mask: True for nomask, False for mask
         # text_self_attention_masks: True for nomask, False for mask
         
-        if self.training_config == "sg" and full_captions is not None and self.training:
+        if self.training_config == "sg" and full_captions is not None:
 
         # Extract text embeddings for full captions
             bert_output_full = self.bert(**tokenized_full_captions)  # bs, max_text_len, hidden_size
@@ -428,7 +424,7 @@ class GroundingDINO(nn.Module):
 
         ######
 
-        if combine_stage == 'before_matching' and self.training_config == "sg" and full_captions is not None and self.training:
+        if combine_stage == 'before_matching' and self.training_config == "sg" and full_captions is not None:
             
             # Combine embeddings before matching
             combined_encoded_text = self.attention(text_dict["encoded_text"], 
@@ -440,7 +436,6 @@ class GroundingDINO(nn.Module):
             text_dict["encoded_text"] = combined_encoded_text
             text_dict.pop("encoded_text_full")
 
-        
         # deformable-detr-like anchor update
         outputs_coord_list = []
         for dec_lid, (layer_ref_sig, layer_bbox_embed, layer_hs) in enumerate(
