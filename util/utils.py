@@ -6,6 +6,9 @@ import warnings
 import torch
 import numpy as np
 
+import sys 
+sys.path.append('..')
+
 def slprint(x, name='x'):
     if isinstance(x, (torch.Tensor, np.ndarray)):
         print(f'{name}.shape:', x.shape)
