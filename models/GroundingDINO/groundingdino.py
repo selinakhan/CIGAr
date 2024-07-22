@@ -462,8 +462,6 @@ class GroundingDINO(nn.Module):
         )
         
         #### Outputs
-        print(outputs_coord_list.shape)
-        exit()
 
         out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord_list[-1]}
 
