@@ -189,7 +189,10 @@ class ODVGDataset(VisionDataset):
             boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
             classes = torch.tensor(classes, dtype=torch.int64)
 
-            full_caption = meta["grounding"]["caption"]
+            try:
+                full_caption = meta["grounding"]["caption"]
+            except:
+                full_caption = ""
 
         elif self.dataset_mode == "VG":
             anno = meta["grounding"]

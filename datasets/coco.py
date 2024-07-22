@@ -438,8 +438,10 @@ class ConvertCocoPolysToMask(object):
             masks = masks[keep]
         if keypoints is not None:
             keypoints = keypoints[keep]
-
-        caption = target["annotations"][0]["caption"]
+        try:
+            caption = target["annotations"][0]["caption"]
+        except:
+            caption = ""
 
         target = {}
         target["boxes"] = boxes
