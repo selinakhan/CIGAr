@@ -204,7 +204,14 @@ def inverse_sigmoid(x, eps=1e-5):
     return torch.log(x1/x2)
 
 import argparse
-from util.slconfig import SLConfig
+# from util.slconfig import SLConfig
+
+def import_from(module, name):
+    module = __import__(module, fromlist=[name])
+    return getattr(module, name)
+
+import_from("Open-GroundingDino.util.slconfig", "SLConfig")
+
 def get_raw_dict(args):
     """
     return the dicf contained in args.
