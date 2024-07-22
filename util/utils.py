@@ -205,12 +205,12 @@ def inverse_sigmoid(x, eps=1e-5):
 
 import argparse
 # from util.slconfig import SLConfig
+import importlib
+def import_class(module, class_name):
+    mod = importlib.import_module(module)
+    return getattr(mod, class_name)
 
-def import_from(module, name):
-    module = __import__(module, fromlist=[name])
-    return getattr(module, name)
-
-import_from("Open-GroundingDino.util.slconfig", "SLConfig")
+SLConfig = import_class("Open-GroundingDino.util.slconfig", "SLConfig")
 
 def get_raw_dict(args):
     """
