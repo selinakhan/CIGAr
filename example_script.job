@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=[JOB NAME]
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=18
+#SBATCH --time=XX:XX:XX
+#SBATCH --output=slurm_output_%A.out
+
+source $HOME/.bashrc
+
+CFG=[path/to/config.py]
+DATASET_TRAIN=[path/to/dataset_train.json]
+DATASET_TEST=[path/to/dataset_test.json]
+
+export CUDA_HOME=$CUDA_PATH
+export TOKENIZERS_PARALLELISM=false
+
+cd [path/to/Open-GroundingDino/]
+
+# TRAIN 
+srun python main.py \
+--output_dir [output/path/] \
+-c ${CFG} \
+--datasets ${DATASET_TRAIN}  \
+--device [device] \
+--pretrain_model_path [path/to/pretrained_model.pth] \
+--use_wandb \
+--dataset [dataset_name] \
+--training_config [vg/sg/od] \
+--options text_encoder_type=[path/to/finetuned_bert/] epochs=10 lr=0.000001 lr_linear_proj_mult=0.0000001 set_cost_class=10.0  \
+
+# EVAL
+srun python main.py \
+--output_dir $TMPDIR/ \
+-c ${CFG} \
+--datasets ${DATASET_TEST}  \
+--device [device] \
+--pretrain_model_path [path/to/pretrained_model.pth] \
+--dataset [dataset_name] \
+--training_config [vg/sg/od] \
+--text_threshold 0.4 \
+--box_threshold 0.4 \
+--eval \
+--save_results \
+
