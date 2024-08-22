@@ -2,7 +2,7 @@
 
 This repository contains the code used for training the CIGAr model from the paper "Context-Infused Visual Grounding for Art" from the ECCV 2024 VISART workshop.  
 
-For data preparation and code setup, please follow the instructions from the original [third-party GroundingDINO implementation](https://github.com/longzw1997/Open-GroundingDino) 
+For data preparation and code setup, please follow the instructions from the original [third-party GroundingDINO implementation.](https://github.com/longzw1997/Open-GroundingDino) All code used to construct, train and evaluate CIGAr are adapted from this implementation. 
 
 ## Configs
 In`config/`, the dataset specifications and model configurations for all datasets used in this researched are included for clarity. 
