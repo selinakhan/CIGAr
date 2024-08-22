@@ -28,7 +28,7 @@ srun python main.py \
 --pretrain_model_path [path/to/pretrained_model.pth] \
 --use_wandb \
 --dataset [dataset_name] \
---training_config [vg/sg/od] \
+--training_config [vg/od] \
 --options text_encoder_type=[path/to/finetuned_bert/] epochs=10 lr=0.000001 lr_linear_proj_mult=0.0000001 set_cost_class=10.0  \
 
 # EVAL
