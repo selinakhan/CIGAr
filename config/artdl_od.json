@@ -1,22 +1,16 @@
 {
   "train": [
     {
-      "root": "../../data/artdl/images/",
-      "anno": "../../data/artdl/splits/artdl_train_odvg.jsonl",
-      "label_map": "../../data/artdl/splits/label_map.json",
-      "dataset_mode": "odvg"
-    },
-    {
-      "root": "../../data/artdl/images/",
-      "anno": "../../data/artdl/splits/artdl_val_odvg.jsonl",
-      "label_map": "../../data/artdl/splits/label_map.json",
+      "root": "/artdl/images/",
+      "anno": "/artdl/train/artdl_train_pgt_odvg.jsonl",
+      "label_map": "/artdl/label_map.json",
       "dataset_mode": "odvg"
     }
   ],
   "val": [
     {
-      "root": "../../data/artdl/images/",
-      "anno": "../../data/artdl/splits/artdl_test_coco.json",
+      "root": "/artdl/images/",
+      "anno": "/artdl/val/artdl_val_coco.json",
       "label_map": null,
       "dataset_mode": "coco"
     }

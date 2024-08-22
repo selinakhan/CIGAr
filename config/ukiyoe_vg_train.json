@@ -1,0 +1,16 @@
+{
+  "train": [
+    {
+      "root": "/ukiyoe/images/",
+      "anno": "/ukiyoe/refined/ukiyoe_vg_train_pgt_odvg.jsonl",
+      "dataset_mode": "odvg"
+    }
+  ],
+  "val": [
+    {
+      "root": "/ukiyoe/images/",
+      "anno": "/ukiyoe/ukiyoe_vg_test_annotated.jsonl",
+      "dataset_mode": "odvg"
+    }
+  ]
+}

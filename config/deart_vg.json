@@ -1,20 +1,15 @@
 {
   "train": [
     {
-      "root": "../../data/deart/images/",
-      "anno": "../../data/deart/splits/odvg/deart_train.jsonl",
-      "dataset_mode": "odvg"
-    },
-    {
-      "root": "../../data/deart/images/",
-      "anno": "../../data/deart/splits/odvg/deart_val.jsonl",
+      "root": "/deart/images/",
+      "anno": "/deart_vg/train/odvg/deart_train_pgt_odvg.jsonl",
       "dataset_mode": "odvg"
     }
   ],
   "val": [
     {
-      "root": "../../data/deart/images/",
-      "anno": "../../data/deart/splits/odvg/deart_test.json",
+      "root": "/deart/images/",
+      "anno": "/deart_vg/val/deart_val_pgt_odvg.json",
       "dataset_mode": "odvg"
     }
   ]

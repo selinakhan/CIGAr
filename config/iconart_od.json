@@ -1,16 +1,16 @@
 {
   "train": [
     {
-      "root": "../../data/iconart/images/",
-      "anno": "../../data/iconart/splits/iconart_train_pgt.jsonl",
-      "label_map": "../../data/iconart/splits/label_map.json",
+      "root": "/iconart/images/",
+      "anno": "/iconart/train/iconart_train_pgt_odvg.jsonl",
+      "label_map": "/iconart/label_map.json",
       "dataset_mode": "odvg"
     }
   ],
   "val": [
     {
-      "root": "../../data/iconart/images/",
-      "anno": "../../data/iconart/splits/iconart_test_coco.json",
+      "root": "/iconart/images/",
+      "anno": "/iconart/test/iconart_test_coco.json",
       "label_map": null,
       "dataset_mode": "coco"
     }
